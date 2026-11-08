@@ -1,0 +1,44 @@
+name: Rebuild video assets from retained frames
+on:
+  push:
+    branches: [main]
+    paths:
+      - "assets/frames/intro/**"
+      - "assets/frames/products/**"
+      - ".github/workflows/build-videos.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  build-videos:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: true
+
+      - name: Install FFmpeg
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg
+
+      - name: Rebuild MP4 assets from the preserved animation frames
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p source-videos
+          ffmpeg -y -framerate 24 -i assets/frames/intro/intro-%03d.jpg -c:v libx264 -pix_fmt yuv420p -movflags +faststart -crf 22 source-videos/intro.mp4
+          ffmpeg -y -framerate 24 -i assets/frames/products/products-%03d.jpg -c:v libx264 -pix_fmt yuv420p -movflags +faststart -crf 22 source-videos/products-on-pedestals.mp4
+          ls -lh source-videos
+
+      - name: Commit rebuilt assets
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add source-videos/*.mp4
+          if ! git diff --cached --quiet; then
+            git commit -m "Restore MP4 animation assets from retained frames [skip ci]"
+            git push
+          fi
